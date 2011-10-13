@@ -2,6 +2,7 @@ class Service::Basecamp < Service
   string   :url, :project, :category, :username
   password :password
   boolean  :ssl
+  boolean  :private
 
   def receive_push
     repository      = payload['repository']['name']
@@ -86,7 +87,7 @@ EOH
   end
 
   def build_message(options = {})
-    m = ::Basecamp::Message.new :project_id => project_id
+    m = ::Basecamp::Message.new :project_id => project_id, :private => data['private']
     m.category_id = category_id
     options.each do |key, value|
       m.send "#{key}=", value

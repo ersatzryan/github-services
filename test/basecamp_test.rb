@@ -9,6 +9,16 @@ class BasecampTest < Service::TestCase
     assert_equal 2, msg.category_id
     assert msg.title.present?
     assert msg.body.present?
+    assert_nil msg.private?
+  end
+
+  def test_private_message
+    svc = service :push, {'private' => true, 'url' => 'https://foo.com', 'username' => 'monkey', 'password' => 'abc'}, payload
+    svc.receive
+
+    assert msg = svc.messages.shift
+
+    assert msg.private?
   end
 
   def service(*args)
