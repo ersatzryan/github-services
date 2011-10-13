@@ -46,6 +46,41 @@ class EmailTest < Service::TestCase
     assert_equal ['a', 1, 'd', 'u', 'p', 'au'], svc.smtp_settings
   end
 
+  def test_custom_subject_format
+    owner = payload['repository']['owner']['name']
+    repo = payload['repository']['name']
+    branch = payload['ref'].sub(/\Arefs\/(heads|tags)\//, '')
+    sha = payload['after'][0..6]
+
+    svc = service({'subject_format' => '[{{owner_name}}/{{repo_name}}:{{branch_name}}] {{after_sha}}'}, payload)
+
+    svc.receive_push
+
+    msg = svc.messages.shift[0]
+
+    assert_equal "[#{owner}/#{repo}:#{branch}] #{sha}", msg.subject
+  end
+
+  def test_default_subject_format
+    svc = service({}, payload)
+
+    svc.receive_push
+
+    msg = svc.messages.shift[0]
+
+    assert_equal svc.default_subject_line, msg.subject
+  end
+
+  def test_invalid_subject_format
+    svc = service({'subject_format' => "{{{{first_commit_sha}}}}"}, payload)
+
+    svc.receive_push
+
+    msg = svc.messages.shift[0]
+
+    assert_equal svc.default_subject_line, msg.subject
+  end
+
   def service(*args)
     svc = super Service::Email, *args
     def svc.messages

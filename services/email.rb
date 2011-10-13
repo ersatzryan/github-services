@@ -1,24 +1,24 @@
+require 'mustache'
+
 class Service::Email < Service
-  string :address, :secret
+
+  string :address, :secret, :subject_format
   boolean :send_from_author
 
+  def first_commit
+    payload['commits'].first
+  end
+
+  def first_commit_sha
+    first_commit["id"][0..5]
+  end
+
+  def first_commit_title
+    title = first_commit["message"][/^([^\n]+)/, 1] || ''
+    title.length > 50 ? "#{title.slice(0,50)}..." : title
+  end
+
   def receive_push
-    name_with_owner = File.join(payload['repository']['owner']['name'], payload['repository']['name'])
-
-    # Should be: first_commit = payload['commits'].first
-    first_commit = payload['commits'].first
-    return if first_commit.nil?
-
-    first_commit_sha = first_commit['id']
-
-    # Shorten the elements of the subject
-    first_commit_sha = first_commit_sha[0..5]
-
-    first_commit_title = first_commit['message'][/^([^\n]+)/, 1] || ''
-    if first_commit_title.length > 50
-      first_commit_title = first_commit_title.slice(0,50) << '...'
-    end
-
     body = <<-EOH
   Branch: #{payload['ref']}
   Home:   #{payload['repository']['url']}
@@ -70,7 +70,7 @@ class Service::Email < Service
       message.from = "#{commit['author']['name']} <#{commit['author']['email']}>" if data['send_from_author']
       message.reply_to = "#{commit['author']['name']} <#{commit['author']['email']}>" if data['send_from_author']
       message.to      = data['address']
-      message.subject = "[#{name_with_owner}] #{first_commit_sha}: #{first_commit_title}"
+      message.subject = subject_line
       message.body    = body
       message.date    = Time.now
 
@@ -82,6 +82,19 @@ class Service::Email < Service
         send_message message, "GitHub <noreply@github.com>", data['address']
       end
     end
+  end
+
+  def subject_line
+    begin
+      sub = Mustache.render(data["subject_format"], self) if data["subject_format"]
+      sub || default_subject_line
+    rescue Mustache::Parser::SyntaxError
+      default_subject_line
+    end
+  end
+
+  def default_subject_line
+    "[#{name_with_owner}] #{first_commit_sha}: #{first_commit_title}"
   end
 
   def smtp_settings
